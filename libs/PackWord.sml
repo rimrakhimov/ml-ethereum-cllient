@@ -481,7 +481,7 @@ local
         Word8.toLargeWord eighth
 
 in
-    structure PackWord56Big : PACK_WORD =
+    structure PackWord64Big : PACK_WORD =
     struct
         val bytesPerElem = 8
         val isBigEndian = true
@@ -530,7 +530,7 @@ in
             )
     end;
 
-    structure PackWord56Little : PACK_WORD =
+    structure PackWord64Little : PACK_WORD =
     struct
         val bytesPerElem = 8
         val isBigEndian = false
