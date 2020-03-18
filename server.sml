@@ -2,35 +2,60 @@ fun println s =
     (print (s ^ "\n"); TextIO.flushOut TextIO.stdOut);
 
 fun word8VectorToWord32 (word8VectorData) =
-      Word8Vector.foldl (fn (item, result) => Word32.+ (Word32.<< (result, Word.fromInt(8)),
-          Word32.fromInt (Word8.toInt item))) (Word32.fromInt 0) word8VectorData;
+  Word32.fromLargeWord (PackWord32Big.subVec (word8VectorData, 0));
+
+fun word32ToWord8Vector (item : Word32.word) =
+  let
+    val arr = Word8Array.array(PackWord32Big.bytesPerElem, 0w0);
+  in
+    PackWord32Big.update (arr, 0, Word32.toLargeWord item);
+    Word8Array.vector arr
+  end;
+
+fun closeConnection conn =
+    let
+      val _ = ()
+    in
+      Socket.close conn;
+      Thread.Thread.exit;
+      ()
+    end;
+
+fun recv conn maxNumberOfBytes =
+  let
+    val data = Socket.recvVec (conn, maxNumberOfBytes);
+    val recvNumberOfBytes = Word8Vector.length data;
+  in
+    if recvNumberOfBytes = 0
+      then (println "Connection broken"; closeConnection conn; Word8Vector.fromList [] )
+    else if recvNumberOfBytes < maxNumberOfBytes
+      then Word8Vector.concat [data, (recv conn (maxNumberOfBytes -
+                                    recvNumberOfBytes))]
+    else data
+  end;
+
+fun recvWord32 conn =
+  word8VectorToWord32 (recv conn 4);
+
+fun sendWord32 conn w =
+  let
+    val data = word32ToWord8Vector w;
+    val len = Word8Vector.length data;
+    val toSend = Word8VectorSlice.slice (data, 0, SOME len)
+  in
+    Socket.sendVec (conn, toSend)
+  end;
 
 fun handleConn conn handler =
   let
-    local
-      fun recv maxNumberOfBytes =
-        let
-          val data = Socket.recvVec (conn, maxNumberOfBytes);
-          val recvNumberOfBytes = Word8Vector.length data;
-        in
-          if recvNumberOfBytes = 0
-            then (Socket.close conn; Thread.exit; () )
-          else if Word8Vector.length < maxNumberOfBytes
-            then Word8Vector.concat [data, (recv (maxNumberOfBytes -
-                                        recvNumberOfBytes))]
-            else data
-        end;
-    in
-      fun recvWord32 =
-        word8VectorToWord32 (recv 4);
-    end;
-    val a = recvWord32;
-    val b = recvWord32;
+    val a = recvWord32 conn;
+    val b = recvWord32 conn;
+    val resp = handler (a, b);
   in
-    Socket.close conn;
-    a
+    if a = (Word32.fromInt 0) andalso b = (Word32.fromInt 0)
+      then (println "Connection closed"; closeConnection conn; ())
+    else (println "I'm here"; sendWord32 conn resp; handleConn conn handler)
   end;
-
 
 
 fun serverForever masterSock handler =
@@ -40,7 +65,7 @@ fun serverForever masterSock handler =
       Thread.Thread.fork (fn () => handleConn conn handler, []);
     val (conn, _) = Socket.accept masterSock;
   in
-    fork conn handler;
+    fork conn;
     serverForever masterSock handler;
     ()
   end;
