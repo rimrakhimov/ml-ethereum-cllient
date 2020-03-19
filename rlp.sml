@@ -118,6 +118,72 @@ structure Rlp =
             PackWord64Big.update (arr, 0, Word64.toLarge w);
             encodeRlpString (RlpString (Word8Array.vector arr))
           end
-
     end
+
+    structure Decoder =
+      struct
+        local
+          fun getPackerSubVec size =
+            case size of
+                 1 => PackWord8Big.subVec  |
+                 2 => PackWord16Big.subVec |
+                 3 => PackWord24Big.subVec |
+                 4 => PackWord32Big.subVec |
+                 5 => PackWord40Big.subVec |
+                 6 => PackWord48Big.subVec |
+                 7 => PackWord56Big.subVec |
+                 8 => PackWord64Big.subVec |
+                  (* is not raised now, as the maximum
+                      Word8Vector length is limited by 8 bytes *)
+                 _ => raise Overflow
+          in
+            fun getLength (b, isList) =
+              let
+                val base = if isList then 0xc0 else 0x80
+                val prefix = Word8.toInt (Word8Vector.sub(b, 0))
+              in
+                if prefix <= base + 55
+                  then
+                    {offset = 1, len = prefix - base}
+                  else
+                    let
+                      val lenSize = prefix - (base + 55)
+                      val packerSubVec = getPackerSubVec lenSize
+
+                      val sizeBytes = Word8VectorSlice.vector (
+                                          Word8VectorSlice.slice(b, 1, SOME lenSize))
+                      val len = Int.fromLarge (LargeWord.toLargeInt
+                                                    (packerSubVec (sizeBytes, 0)))
+                    in
+                      {offset = 1 + lenSize, len = len}
+                    end
+              end
+          end
+
+        local
+          val base = 0wx80
+        in
+          fun decodeRlpString b =
+            let
+              val prefix = Word8Vector.sub (b, 0)
+            in
+              if Word8Vector.length b = 1 andalso prefix < base
+                then  (* data is the string itself *)
+                  RlpString (b)
+                else
+                  let
+                    val len_off = getLength (b, false)
+                    val offset = #offset len_off
+                    val len = #len len_off
+                  in
+                    RlpString (Word8VectorSlice.vector (
+                                  Word8VectorSlice.slice(b, offset, SOME len)))
+                  end
+            end
+        end
+
+        fun decodeRlpList b =
+
+
+      end
 end
