@@ -122,7 +122,142 @@ structure Rlp =
 
     structure Decoder =
       struct
+        exception WrongRlpFormat of string;
+
         local
+          fun getPackerSubVec size =
+            case size of
+                 1 => PackWord8Big.subVec  |
+                 2 => PackWord16Big.subVec |
+                 3 => PackWord24Big.subVec |
+                 4 => PackWord32Big.subVec |
+                 5 => PackWord40Big.subVec |
+                 6 => PackWord48Big.subVec |
+                 7 => PackWord56Big.subVec |
+                 8 => PackWord64Big.subVec |
+                  (* is not raised now, as the maximum
+                      Word8Vector length is limited by 8 bytes *)
+                 _ => raise Overflow
+
+        fun getStringLength input =
+          let
+            val base = 0wx80
+            val inLen = Word8Vector.length input
+            val prefix = Word8Vector.sub (input, 0)
+          in
+            if
+              prefix < base
+            then
+              {len = 1, offset = 0, isList = false}
+
+            else
+              if
+                prefix <= (base + 0w55)  andalso
+                  inLen > Word8.toInt (prefix - base)
+              then
+                let
+                  val strLen = Word8.toInt (prefix - base)
+                in
+                  if
+                    strLen = 1 andalso Word8Vector.sub(input, 1) < base
+                  then
+                    raise WrongRlpFormat "Single byte below 128 must be encoded as itself"
+                  else
+                    {len = strLen, offset = 1, isList = false}
+                end
+
+              else
+                if
+                  prefix < (base + 0wx40) andalso inLen > Word8.toInt (prefix - (base + 0w55))
+                then
+                  let
+                    val lenSize = Word8.toInt (prefix - (base + 0w55))
+                    val packerSubVec = getPackerSubVec lenSize
+
+                    val sizeBytes = Word8VectorSlice.vector (
+                      Word8VectorSlice.slice(input, 1, SOME lenSize)
+                    )
+                    val len = Int.fromLarge(
+                      LargeWord.toLargeInt (packerSubVec (sizeBytes, 0))
+                    )
+                  in
+                    if
+                      inLen > Word8.toInt (prefix - (base + 0w55) + len)
+                    then
+                      if
+                        Word8Vector.sub(input, 1) = 0w0
+                      then
+                        raise WrongRlpFormat "Multi-byte length must have no leading zero"
+                      else
+                        if
+                          len < 56
+                        then
+                          raise WrongRlpFormat "Length below 56 must be encoded in one byte"
+                        else
+                          {len = len, offset = 1 + lenSize, isList = false}
+                    else
+                      raise WrongRlpFormat "Input don't conform RLP encoding form"
+
+                  end
+                else
+                  raise WrongRlpFormat "Input don't conform RLP encoding form"
+          end
+
+        fun getListLength input =
+          let
+            val base = 0wxc0
+            val inLen = Word8Vector.length input
+            val prefix = Word8Vector.sub (input, 0)
+          in
+
+          end
+
+
+
+
+            val stringBase = 0wx80
+            val listBase = 0wxc0
+
+            val emptyVector = Word8Vector.fromList []
+          in
+            fun getLength (emptyArray) =
+                  (* should not be raised as function is not
+                      called for empty vectors *)
+                  raise WrongRlpFormat "Input is null"
+              | getLength (input) =
+                                                len > Word8.toInt (prefix - (stringBase + 0w55)
+
+
+
+                    raise WrongRlpFormat ""
+                  end
+
+          end
+
+(*              | getLength
+              let
+                val len = Word8Vector.length b
+              in
+
+                if prefix <= base + 55
+                  then
+                    {offset = 1, len = prefix - base}
+                  else
+                    let
+                      val lenSize = prefix - (base + 55)
+                      val packerSubVec = getPackerSubVec lenSize
+
+                      val sizeBytes = Word8VectorSlice.vector (
+                                          Word8VectorSlice.slice(b, 1, SOME lenSize))
+                      val len = Int.fromLarge (LargeWord.toLargeInt
+                                                    (packerSubVec (sizeBytes, 0)))
+                    in
+                      {offset = 1 + lenSize, len = len}
+                    end
+              end
+          end *)
+
+        (*local
           fun getPackerSubVec size =
             case size of
                  1 => PackWord8Big.subVec  |
@@ -158,32 +293,47 @@ structure Rlp =
                       {offset = 1 + lenSize, len = len}
                     end
               end
-          end
+          end *)
 
-        local
+(*        local
           val base = 0wx80
         in
-          fun decodeRlpString b =
+          fun decodeRlpStringInternal b =
             let
               val prefix = Word8Vector.sub (b, 0)
             in
               if Word8Vector.length b = 1 andalso prefix < base
                 then  (* data is the string itself *)
-                  RlpString (b)
+                { encodedString = RlpString (b),
+                  remaindeBytes = Word8VectorSlice.vector (
+                                 Word8VectorSlice.slice(b, ))
                 else
                   let
                     val len_off = getLength (b, false)
                     val offset = #offset len_off
                     val len = #len len_off
                   in
-                    RlpString (Word8VectorSlice.vector (
-                                  Word8VectorSlice.slice(b, offset, SOME len)))
+                    { encodedString = RlpString (Word8VectorSlice.vector (
+                                     Word8VectorSlice.slice(b, offset, SOME len))),
+                      remainedBytes = Word8VectorSlice.vector (
+                                     Word8VectorSlice.slice(b, offset + len, NONE))
+                    }
                   end
             end
         end
 
-        fun decodeRlpList b =
+        fun decodeRlpString b =
+          #encodedString (decodeRlpString b) *)
 
+        (*local
+          val base = 0wxc0
+        in
+          fun decodeRlpList b =
+            let
+              fun decodeRlpListItem (bRemainder, decodedList) =
+                let
+                  val isList =
+              val len_off = getLength (b, true) *)
 
       end
 end
