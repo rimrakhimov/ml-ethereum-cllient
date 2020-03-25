@@ -14,10 +14,7 @@ local
                             (cPointer, cByteArray), cVoid)
 
   val ctrEncryptCall = buildCall3((getSymbol aes_lib "AES_CTR_xcrypt_buffer"),
-                        (cPointer, cByteArray, cUint32), cVoid)
-
-  val printDataCall = buildCall2((getSymbol aes_lib "print_data"),
-                                 (cByteArray, cInt), cVoid)
+                        (cPointer, cArrayPointer cUint8, cUint32), cVoid)
 in
   structure Aes =
     struct
@@ -30,8 +27,7 @@ in
       fun setEncryptorIV(encryptor, iv) = setEncryptorIVCall(encryptor, iv)
 
       fun ctrEncrypt(encryptor, data) =
-        ctrEncryptCall(encryptor, data, Word8Vector.length data)
+        ctrEncryptCall(encryptor, data, IntArray.length data)
 
-      fun printData(data, len) = printDataCall(data, len)
     end
 end

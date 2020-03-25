@@ -1,5 +1,6 @@
 #include "aes.c"
 #include <stdlib.h>
+#include <stdio.h>
 
 int get_keylen() {
 	return AES_KEYLEN;
@@ -50,3 +51,10 @@ void print_data(const uint8_t* data, int length) {
 
 	return 0;
 } */
+
+
+
+
+
+
+
