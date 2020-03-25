@@ -270,6 +270,43 @@ structure Rlp =
                 end
         end
 
+(*        local
+          val emptyVector = Word8Vector.fromList []
+        in
+          fun rlpDecode (emptyVector) =
+                raise WrongRlpFormat "Input is null"
+            | rlpDecode (input) =
+                let
+                  val header = decodeLength (input)
+                  val len = #len header
+                  val offset = #offset header
+                  val isList = #isList header
+
+                  val encodedItem = Word8VectorSlice.vector (
+                        Word8VectorSlice.slice (input, offset, SOME len)
+                      )
+                  val remainedInput = Word8VectorSlice.vector(
+                        Word8VectorSlice.slice (input, offset + len, NONE)
+                      )
+
+                  fun rlpDecodeString (input) =
+                    RlpString (input)
+
+
+                  fun rlpDecodeList (input) =
+                    RlpList (rlpDecode (input))
+
+                in
+                  if
+                    isList
+                  then
+
+                  else
+                    rlpDecodeString (encodedItem)
+                end *)
+
+
+
 (*              | getLength
               let
                 val len = Word8Vector.length b
