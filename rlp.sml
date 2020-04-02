@@ -1,6 +1,22 @@
 use "utils";
 use "libs/PackWord";
 
+(*signature RLP =
+sig
+  type rlp_item
+  type rlp_result
+
+  val getRlpResultData : rlp_result -> Word8Vector.vector
+  val getRlpResultOffset : rlp_result -> Word8.word
+  val getRlpResultLength : rlp_result -> Word64.word
+  val getRlpResultIsList : rlp_result -> bool
+
+  signature ENCODER =
+  sig
+    type rlp_result = R
+  end
+end *)
+
 structure Rlp =
   struct
       (* boolean specifies whether item is already   *)
@@ -10,11 +26,13 @@ structure Rlp =
       (* Rlp encoded vector, offset of data beginning, len of data *)
     datatype rlpResult = RlpResult of {data : Word8Vector.vector,
                                        offset : Word8.word,
-                                       len : Word64.word};
+                                       len : Word64.word,
+                                       isList : bool};
 
     fun getRlpResultData (RlpResult(result)) = #data result
     fun getRlpResultOffset (RlpResult(result)) = #offset result
     fun getRlpResultLength (RlpResult(result)) = #len result
+    fun getRlpResultIsList (RlpResult(result)) = #isList result
 
 
     structure Encoder =
@@ -22,6 +40,7 @@ structure Rlp =
 
         (* val emptyRlpString = RlpResult(Word8Array.vector(Word8Array.array (1, 0wx80))); *)
         (* val emptyRlpList = RlpResult(Word8Array.vector(Word8Array.array (1, 0wxc0))); *)
+
 
         local
           fun getPackerUpdater size =
@@ -68,7 +87,8 @@ structure Rlp =
                 RlpResult({
                   data = Word8Vector.fromList [Word8Vector.sub(b, 0)],
                   offset = 0w0,
-                  len = Word64.fromInt len
+                  len = Word64.fromInt len,
+                  isList = false
                 })
               else
                 let
@@ -77,7 +97,8 @@ structure Rlp =
                   RlpResult({
                     data = Word8Vector.concat [header, b],
                     offset = Word8.fromInt (Word8Vector.length header),
-                    len = Word64.fromInt len
+                    len = Word64.fromInt len,
+                    isList = false
                   })
                 end
           end
@@ -107,7 +128,8 @@ structure Rlp =
             RlpResult({
               data = Word8Vector.concat [header, encodedItemsVec],
               offset = Word8.fromInt (Word8Vector.length header),
-              len = Word64.fromInt len
+              len = Word64.fromInt len,
+              isList = true
             })
           end
 
@@ -129,7 +151,8 @@ structure Rlp =
             RlpResult({
               data = Word8Vector.concat [header, allItems],
               offset = Word8.fromInt (Word8Vector.length header),
-              len = Word64.fromInt len
+              len = Word64.fromInt len,
+              isList = true
             })
           end
 
@@ -159,7 +182,7 @@ structure Rlp =
               if
                 nonZeroIndex < wordLen
               then
-                Word8VectorSlice.vector (Word8VectorSlice.slice (w, nonZeroIndex, NONE))
+                Utils.takeVectorSlice (w, nonZeroIndex, NONE)
               else    (* all elements are zeros *)
                 Word8Vector.fromList [0wx0]
             end
@@ -203,7 +226,7 @@ structure Rlp =
           end
     end
 
-(*    structure Decoder =
+    structure Decoder =
       struct
         exception WrongRlpFormat of string;
 
@@ -256,9 +279,7 @@ structure Rlp =
                       val lenSize = Word8.toInt (prefix - (base + 0w55))
                       val packerSubVec = getPackerSubVec lenSize
 
-                      val sizeBytes = Word8VectorSlice.vector (
-                        Word8VectorSlice.slice(input, 1, SOME lenSize)
-                      )
+                      val sizeBytes = Utils.takeVectorSlice (input, 1, SOME lenSize)
                       val len = Int.fromLarge(
                         LargeWord.toLargeInt (packerSubVec (sizeBytes, 0))
                       )
@@ -304,9 +325,7 @@ structure Rlp =
                     val lenSize = Word8.toInt (prefix - (base + 0w55))
                     val packerSubVec = getPackerSubVec lenSize
 
-                    val sizeBytes = Word8VectorSlice.vector (
-                      Word8VectorSlice.slice(input, 1, SOME lenSize)
-                    )
+                    val sizeBytes = Utils.takeVectorSlice (input, 1, SOME lenSize)
                     val len = Int.fromLarge(
                       LargeWord.toLargeInt (packerSubVec (sizeBytes, 0))
                     )
@@ -333,166 +352,156 @@ structure Rlp =
                 raise WrongRlpFormat "Input don't conform RLP encoding form"
             end
 
-          val emptyVector = Word8Vector.fromList []
-
         in
-          fun decodeLength (emptyArray) =
-                (* should not be raised as function is not
-                    called for empty vectors *)
-                raise WrongRlpFormat "Input is null"
-            | decodeLength (input) =
-                let
-                  val prefix = Word8Vector.sub(input, 0)
-                in
-                  if
-                    prefix < 0wxc0
-                  then
-                    decodeStringLength input
-                  else
-                    decodeListLength input
-                end
-        end
-
-        fun formRlpResult (input : Word8Vector) =
-
-
-//        local
-          val emptyVector = Word8Vector.fromList []
-        in
-          fun rlpDecode (emptyVector) =
-                raise WrongRlpFormat "Input is null"
-            | rlpDecode (input) =
-                let
-                  val header = decodeLength (input)
-                  val len = #len header
-                  val offset = #offset header
-                  val isList = #isList header
-
-                  val encodedItem = Word8VectorSlice.vector (
-                        Word8VectorSlice.slice (input, offset, SOME len)
-                      )
-                  val remainedInput = Word8VectorSlice.vector(
-                        Word8VectorSlice.slice (input, offset + len, NONE)
-                      )
-
-                  fun rlpDecodeString (input) =
-                    RlpString (input)
-
-
-                  fun rlpDecodeList (input) =
-                    RlpList (rlpDecode (input))
-
-                in
-                  if
-                    isList
-                  then
-
-                  else
-                    rlpDecodeString (encodedItem)
-                end //
-
-
-
-//              | getLength
+          fun decodeLength (input) =
+            if
+              Utils.isWord8VectorEmpty input
+            then
+              (* should not be raised as function in not called for empty vectors *)
+              raise WrongRlpFormat "Input is null"
+            else
               let
-                val len = Word8Vector.length b
+                val prefix = Word8Vector.sub(input, 0)
               in
-
-                if prefix <= base + 55
-                  then
-                    {offset = 1, len = prefix - base}
-                  else
-                    let
-                      val lenSize = prefix - (base + 55)
-                      val packerSubVec = getPackerSubVec lenSize
-
-                      val sizeBytes = Word8VectorSlice.vector (
-                                          Word8VectorSlice.slice(b, 1, SOME lenSize))
-                      val len = Int.fromLarge (LargeWord.toLargeInt
-                                                    (packerSubVec (sizeBytes, 0)))
-                    in
-                      {offset = 1 + lenSize, len = len}
-                    end
-              end
-          end //
-
-//        local
-          fun getPackerSubVec size =
-            case size of
-                 1 => PackWord8Big.subVec  |
-                 2 => PackWord16Big.subVec |
-                 3 => PackWord24Big.subVec |
-                 4 => PackWord32Big.subVec |
-                 5 => PackWord40Big.subVec |
-                 6 => PackWord48Big.subVec |
-                 7 => PackWord56Big.subVec |
-                 8 => PackWord64Big.subVec |
-                  (* is not raised now, as the maximum
-                      Word8Vector length is limited by 8 bytes *)
-                 _ => raise Overflow
-          in
-            fun getLength (b, isList) =
-              let
-                val base = if isList then 0xc0 else 0x80
-                val prefix = Word8.toInt (Word8Vector.sub(b, 0))
-              in
-                if prefix <= base + 55
-                  then
-                    {offset = 1, len = prefix - base}
-                  else
-                    let
-                      val lenSize = prefix - (base + 55)
-                      val packerSubVec = getPackerSubVec lenSize
-
-                      val sizeBytes = Word8VectorSlice.vector (
-                                          Word8VectorSlice.slice(b, 1, SOME lenSize))
-                      val len = Int.fromLarge (LargeWord.toLargeInt
-                                                    (packerSubVec (sizeBytes, 0)))
-                    in
-                      {offset = 1 + lenSize, len = len}
-                    end
-              end
-          end //
-
-//        local
-          val base = 0wx80
-        in
-          fun decodeRlpStringInternal b =
-            let
-              val prefix = Word8Vector.sub (b, 0)
-            in
-              if Word8Vector.length b = 1 andalso prefix < base
-                then  (* data is the string itself *)
-                { encodedString = RlpString (b),
-                  remaindeBytes = Word8VectorSlice.vector (
-                                 Word8VectorSlice.slice(b, ))
+                if
+                  prefix < 0wxc0
+                then
+                  decodeStringLength input
                 else
-                  let
-                    val len_off = getLength (b, false)
-                    val offset = #offset len_off
-                    val len = #len len_off
-                  in
-                    { encodedString = RlpString (Word8VectorSlice.vector (
-                                     Word8VectorSlice.slice(b, offset, SOME len))),
-                      remainedBytes = Word8VectorSlice.vector (
-                                     Word8VectorSlice.slice(b, offset + len, NONE))
-                    }
-                  end
-            end
+                  decodeListLength input
+              end
         end
 
-        fun decodeRlpString b =
-          #encodedString (decodeRlpString b) //
-
-//        local
-          val base = 0wxc0
-        in
-          fun decodeRlpList b =
+        fun formRlpResult (rawInput) =
+          if
+            Utils.isWord8VectorEmpty rawInput
+          then
+            raise WrongRlpFormat "Input is null"
+          else
             let
-              fun decodeRlpListItem (bRemainder, decodedList) =
-                let
-                  val isList =
-              val len_off = getLength (b, true) //
+              val header = decodeLength (rawInput)
+              val len = #len header
+              val offset = #offset header
+              val isList = #isList header
+            in
+              RlpResult({
+                data = Utils.takeVectorSlice (rawInput, 0, SOME (offset + len)),
+                len = Word64.fromInt len,
+                offset = Word8.fromInt offset,
+                isList = isList
+              })
+            end
 
-      end *)
+          (* takes rlpResult as an argument *)
+        fun decodeRlpString input =
+          let
+            val data = getRlpResultData input
+            val offset = Word8.toInt (getRlpResultOffset input)
+            val len = Word64.toInt (getRlpResultLength input)
+            val isList = getRlpResultIsList input
+          in
+            if
+              isList
+            then
+              raise WrongRlpFormat "The input is rlp list"
+            else
+              if
+                Word8Vector.length data <> (offset + len)
+              then  (* not whole data is used from rlpResult *)
+                raise WrongRlpFormat "The rlpResult data is not fully used"
+              else
+                Utils.takeVectorSlice (data, offset, SOME len)
+          end
+
+          (* takes rlpResult as an argument *)
+          (* transforms each item of list in rlpResult *)
+        fun decodeRlpList input =
+          let
+            val data = getRlpResultData input
+            val offset = Word8.toInt (getRlpResultOffset input)
+            val len = Word64.toInt (getRlpResultLength input)
+            val isList = getRlpResultIsList input
+
+            fun decodeRlpListItems (input, currentResult) =
+              let
+                val item = formRlpResult (input)
+                val itemOffset = Word8.toInt (getRlpResultOffset item)
+                val itemLen = Word64.toInt (getRlpResultLength item)
+                val itemSize = itemOffset + itemLen
+                val remainingPart = Utils.takeVectorSlice (input, itemSize, NONE)
+              in
+                if
+                  Utils.isWord8VectorEmpty remainingPart
+                then
+                  List.rev (item :: currentResult)
+                else
+                  decodeRlpListItems (remainingPart, (item :: currentResult))
+              end
+
+            val headerlessData = Utils.takeVectorSlice (data, offset, NONE)
+          in
+            if
+              not isList
+            then
+              raise WrongRlpFormat "The input is rlp string"
+            else
+              if
+                Word8Vector.length data <> (offset + len)
+              then  (* not whole data is used from rlpResult *)
+                raise WrongRlpFormat "The rlpResult data is not fully used"
+              else
+                decodeRlpListItems (headerlessData, [])
+          end
+
+        fun decodeString input = Byte.bytesToString (decodeRlpString input)
+
+        fun decodeWord (input, wordSize) =
+          let
+            fun validateWord (decodedWord, wordSize) =
+              let
+                val decodedWordLen = Word8Vector.length decodedWord
+                val _ =
+                  if (decodedWordLen = 0)
+                    then raise WrongRlpFormat "Word should be at least one byte long"
+                    else ()
+                val _ =
+                  if (decodedWordLen > 1) andalso (Word8Vector.sub(decodedWord, 0) = 0w0)
+                    then raise WrongRlpFormat "Word should not contain leading zeros"
+                    else ()
+                val _ =
+                  if decodedWordLen > wordSize
+                    then raise WrongRlpFormat "Word should not be greater than decoding word size"
+                    else ()
+              in
+                ()
+              end
+
+            fun fillWithZeros (data, zerosCount) =
+              let
+                val padding = Word8Array.vector (Word8Array.array (zerosCount, 0w0))
+              in
+                Word8Vector.concat [padding, data]
+              end
+
+            val decodedWord = decodeRlpString input
+            val _ = validateWord (decodedWord, wordSize)
+
+            val zerosCount = wordSize - (Word8Vector.length decodedWord)
+          in
+            fillWithZeros (decodedWord, zerosCount)
+          end
+
+        fun decodeWord8 input =
+          Utils.word8VectorToWord8 (decodeWord (input, 1))
+
+        fun decodeWord16 input =
+          Utils.word8VectorToWord16 (decodeWord (input, 2))
+
+        fun decodeWord32 input =
+          Utils.word8VectorToWord32 (decodeWord (input, 4))
+
+        fun decodeWord64 input =
+          Utils.word8VectorToWord64 (decodeWord (input, 8))
+
+      end
 end
