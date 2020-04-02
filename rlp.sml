@@ -3,14 +3,25 @@ use "libs/PackWord";
 
 structure Rlp =
   struct
-    datatype RlpItem = RlpString of Word8Vector.vector
-                     | RlpList of RlpItem list;
+      (* boolean specifies whether item is already   *)
+    datatype rlpItem = RlpString of Word8Vector.vector
+                     | RlpList of rlpItem list;
+
+      (* Rlp encoded vector, offset of data beginning, len of data *)
+    datatype rlpResult = RlpResult of {data : Word8Vector.vector,
+                                       offset : Word8.word,
+                                       len : Word64.word};
+
+    fun getRlpResultData (RlpResult(result)) = #data result
+    fun getRlpResultOffset (RlpResult(result)) = #offset result
+    fun getRlpResultLength (RlpResult(result)) = #len result
+
 
     structure Encoder =
       struct
 
-        val emptyRlpString = Word8Array.vector(Word8Array.array (1, 0wx80));
-        val emptyRlpList = Word8Array.vector(Word8Array.array (1, 0wxc0));
+        (* val emptyRlpString = RlpResult(Word8Array.vector(Word8Array.array (1, 0wx80))); *)
+        (* val emptyRlpList = RlpResult(Word8Array.vector(Word8Array.array (1, 0wxc0))); *)
 
         local
           fun getPackerUpdater size =
@@ -54,45 +65,117 @@ structure Rlp =
           in
             if len = 1 andalso Word8Vector.sub(b, 0) < 0wx80
               then
-                Word8Vector.fromList [Word8Vector.sub(b, 0)]
+                RlpResult({
+                  data = Word8Vector.fromList [Word8Vector.sub(b, 0)],
+                  offset = 0w0,
+                  len = Word64.fromInt len
+                })
               else
                 let
                   val header = encodeHeader (len, false)
                 in
-                  Word8Vector.concat [header, b]
+                  RlpResult({
+                    data = Word8Vector.concat [header, b],
+                    offset = Word8.fromInt (Word8Vector.length header),
+                    len = Word64.fromInt len
+                  })
                 end
           end
 
+    (* none of the items are assumed to be encoded prior *)
         fun encodeRlpList (RlpList(l)) =
           let
-            fun encodeRlpListItems ([], currentResult) =
-                  currentResult
-              | encodeRlpListItems ((item : RlpItem) :: ls, currentResult) =
+            (* returns vector instead of rlpResult
+             *  as vector is used by encodeRlpList function *)
+            fun encodeRlpListItems ([], currentResultVec) =
+                  currentResultVec
+              | encodeRlpListItems ((item : rlpItem) :: ls, currentResultVec) =
                   let
                     val encodedItem = case item of
                                         RlpString (_) => encodeRlpString item
                                       | RlpList (_) => encodeRlpList item
-                    val newResult = Word8Vector.concat [currentResult, encodedItem]
+                    val encodedItemData = getRlpResultData encodedItem
+                    val newResultVec = Word8Vector.concat [currentResultVec, encodedItemData]
                   in
-                    encodeRlpListItems (ls, newResult)
+                    encodeRlpListItems (ls, newResultVec)
                   end
 
-            val encodedItems = encodeRlpListItems (l, Word8Vector.fromList [])
-            val len = Word8Vector.length encodedItems
+            val encodedItemsVec = encodeRlpListItems (l, Word8Vector.fromList [])
+            val len = Word8Vector.length encodedItemsVec
             val header = encodeHeader (len, true)
           in
-            Word8Vector.concat [header, encodedItems]
+            RlpResult({
+              data = Word8Vector.concat [header, encodedItemsVec],
+              offset = Word8.fromInt (Word8Vector.length header),
+              len = Word64.fromInt len
+            })
+          end
+
+        (* the whole content of the list is assumed to be rlp encoded *)
+        fun encodeRlpResultsList (l : rlpResult list) =
+          let
+            fun concatenateItems ([], currentResult) =
+                  currentResult
+              | concatenateItems (item :: ls, currentResult) =
+                  let val itemData = getRlpResultData(item)
+                  in
+                    concatenateItems (ls, Word8Vector.concat [currentResult, itemData])
+                  end
+
+            val allItems = concatenateItems(l, Word8Vector.fromList [])
+            val len = Word8Vector.length allItems
+            val header = encodeHeader (len, true)
+          in
+            RlpResult({
+              data = Word8Vector.concat [header, allItems],
+              offset = Word8.fromInt (Word8Vector.length header),
+              len = Word64.fromInt len
+            })
           end
 
         fun encodeString s =
           encodeRlpString (RlpString (Byte.stringToBytes s))
+
+        local
+          fun normalizeWord (w : Word8Vector.vector) =
+            let
+              val wordLen = Word8Vector.length w
+
+              fun getNonZeroIndex (currentIndex) =
+                if
+                  currentIndex < wordLen
+                then
+                  if
+                    Word8Vector.sub (w, currentIndex) <> 0wx0
+                  then
+                    currentIndex
+                  else
+                    getNonZeroIndex (currentIndex + 1)
+                else
+                  currentIndex + 1    (* all elements are zeros *)
+
+              val nonZeroIndex = getNonZeroIndex 0
+            in
+              if
+                nonZeroIndex < wordLen
+              then
+                Word8VectorSlice.vector (Word8VectorSlice.slice (w, nonZeroIndex, NONE))
+              else    (* all elements are zeros *)
+                Word8Vector.fromList [0wx0]
+            end
+        in
+          fun encodeWord (w : Word8Vector.vector) =
+            encodeRlpString (RlpString (normalizeWord w))
+        end
+
+
 
         fun encodeWord8 w =
           let
             val arr = Word8Array.array (PackWord8Big.bytesPerElem, 0w0)
           in
             PackWord8Big.update (arr, 0, Word8.toLarge w);
-            encodeRlpString (RlpString (Word8Array.vector arr))
+            encodeWord (Word8Array.vector arr)
           end
 
         fun encodeWord16 w =
@@ -100,7 +183,7 @@ structure Rlp =
             val arr = Word8Array.array (PackWord16Big.bytesPerElem, 0w0)
           in
             PackWord16Big.update (arr, 0, Word16.toLarge w);
-            encodeRlpString (RlpString (Word8Array.vector arr))
+            encodeWord (Word8Array.vector arr)
           end
 
          fun encodeWord32 w =
@@ -108,7 +191,7 @@ structure Rlp =
             val arr = Word8Array.array (PackWord32Big.bytesPerElem, 0w0)
           in
             PackWord32Big.update (arr, 0, Word32.toLarge w);
-            encodeRlpString (RlpString (Word8Array.vector arr))
+            encodeWord (Word8Array.vector arr)
           end
 
          fun encodeWord64 w =
@@ -116,11 +199,11 @@ structure Rlp =
             val arr = Word8Array.array (PackWord64Big.bytesPerElem, 0w0)
           in
             PackWord64Big.update (arr, 0, Word64.toLarge w);
-            encodeRlpString (RlpString (Word8Array.vector arr))
+            encodeWord (Word8Array.vector arr)
           end
     end
 
-    structure Decoder =
+(*    structure Decoder =
       struct
         exception WrongRlpFormat of string;
 
@@ -270,7 +353,10 @@ structure Rlp =
                 end
         end
 
-(*        local
+        fun formRlpResult (input : Word8Vector) =
+
+
+//        local
           val emptyVector = Word8Vector.fromList []
         in
           fun rlpDecode (emptyVector) =
@@ -303,11 +389,11 @@ structure Rlp =
 
                   else
                     rlpDecodeString (encodedItem)
-                end *)
+                end //
 
 
 
-(*              | getLength
+//              | getLength
               let
                 val len = Word8Vector.length b
               in
@@ -328,9 +414,9 @@ structure Rlp =
                       {offset = 1 + lenSize, len = len}
                     end
               end
-          end *)
+          end //
 
-        (*local
+//        local
           fun getPackerSubVec size =
             case size of
                  1 => PackWord8Big.subVec  |
@@ -366,9 +452,9 @@ structure Rlp =
                       {offset = 1 + lenSize, len = len}
                     end
               end
-          end *)
+          end //
 
-(*        local
+//        local
           val base = 0wx80
         in
           fun decodeRlpStringInternal b =
@@ -396,9 +482,9 @@ structure Rlp =
         end
 
         fun decodeRlpString b =
-          #encodedString (decodeRlpString b) *)
+          #encodedString (decodeRlpString b) //
 
-        (*local
+//        local
           val base = 0wxc0
         in
           fun decodeRlpList b =
@@ -406,7 +492,7 @@ structure Rlp =
               fun decodeRlpListItem (bRemainder, decodedList) =
                 let
                   val isList =
-              val len_off = getLength (b, true) *)
+              val len_off = getLength (b, true) //
 
-      end
+      end *)
 end
