@@ -3,7 +3,7 @@ use "libs/PackWord";
 
 signature RLP =
 sig
-  type rlpResult
+  eqtype rlpResult
 
   val getRlpResultData : rlpResult -> Word8Vector.vector
   val getRlpResultOffset : rlpResult -> Word8.word
