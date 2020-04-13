@@ -12,6 +12,8 @@ sig
 
   structure Encoder:
   sig
+    val encodedEmptyList : rlpResult
+
     val encodeRlpResultsList : rlpResult list -> rlpResult
 
     val encodeWord8Vector : Word8Vector.vector -> rlpResult
@@ -59,6 +61,14 @@ struct
   struct
     datatype rlpItem = RlpString of Word8Vector.vector |
                        RlpList of rlpItem list;
+
+    val encodedEmptyList = RlpResult({
+      data = Word8Vector.fromList[0wxC0],
+      isList = true,
+      len = 0wx0,
+      offset = 0wx1
+    })
+
     local
       fun getPackerUpdater size =
         case size of

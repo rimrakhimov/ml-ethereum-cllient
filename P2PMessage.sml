@@ -10,10 +10,10 @@ sig
   type disconnectReason
   type disconnect
 
-  type messageIdentifier
+  type p2pMessage
 
-  val messageIdentifierValue : messageIdentifier -> Word64.word
-  val messageIdentifierName : messageIdentifier -> string
+  val messageIdentifierValue : p2pMessage -> Word64.word
+  val messageIdentifierName : p2pMessage -> string
 
   exception MessageFormat of string
 
@@ -22,6 +22,9 @@ sig
 
   val encodeDisconnect : disconnect -> Word8Vector.vector
   val decodeDisconnect : Word8Vector.vector -> disconnect
+
+  val encodeMessage : p2pMessage -> Word8Vector.vector
+  val decodeMessage : Word8Vector -> p2pMessage
 
 end
 
@@ -37,22 +40,22 @@ struct
   type disconnectReason = Word64.word
   datatype disconnect = Disconnect of disconnectReason option
 
-  datatype messageIdentifier = MessageHello of handshake       |
-                               MessageDisconnect of disconnect |
-                               MessagePing                     |
-                               MessagePong
+  datatype p2pMessage = MessageHello of handshake       |
+                        MessageDisconnect of disconnect |
+                        MessagePing                     |
+                        MessagePong
 
-  fun messageIdentifierValue (identifier) =
-    case identifier of
+  fun messageIdentifierValue (message) : Word64.word =
+    case message of
          MessageHello(_) => 0wx0      |
          MessageDisconnect(_) => 0wx1 |
          MessagePing => 0wx2       |
          MessagePong => 0wx3;
 
-  fun messageIdentifierName (identifier) =
+  fun messageIdentifierName (message) =
   let
     val names = Vector.fromList ["Hello", "Disconnect", "Ping", "Pong"]
-    val index = Word64.toInt (messageIdentifierValue identifier)
+    val index = Word64.toInt (messageIdentifierValue message)
   in
     Vector.sub (names, index)
   end;
@@ -231,6 +234,21 @@ struct
       end
   end
 
+  fun encodeMessage (message : p2pMessage ) =
+  let
+    val messageBody =
+      case message of
+         MessageHello (hand) => encodeHandshake hand
+       | MessageDisconnect (dis) => encodeDisconnect dis
+       | MessagePing => RlpCoder.getRlpResultData RlpCoder.Encoder.encodedEmptyList
+       | MessagePong => RlpCoder.getRlpResultData RlpCoder.Encoder.encodedEmptyList
 
+    val messageId = RlpCoder.getRlpResultData (
+      RlpCoder.Encoder.encodeWord64 (messageIdentifierValue message)
+    )
+  in
+     (* TODO: add snappy compression for non Hello messages *)
+    Word8Vector.concat [messageId, messageBody]
+  end
 
 end
