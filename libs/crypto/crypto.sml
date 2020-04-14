@@ -1,22 +1,37 @@
 signature CRYPTO =
 sig
-  val sha1 : Word8Vector.vector -> Word8Vector.vector;
-  val sha256 : Word8Vector.vector -> Word8Vector.vector;
-  val sha224 : Word8Vector.vector -> Word8Vector.vector;
-  val sha256_2 : Word8Vector.vector -> Word8Vector.vector;
-  val sha384 : Word8Vector.vector -> Word8Vector.vector;
-  val sha512 : Word8Vector.vector -> Word8Vector.vector;
-  val rmd160 : Word8Vector.vector -> Word8Vector.vector;
-  val hash160 : Word8Vector.vector -> Word8Vector.vector;
-  val sha3_256 : Word8Vector.vector -> Word8Vector.vector;
-  val keccak256 : Word8Vector.vector -> Word8Vector.vector;
-  val md5 : Word8Vector.vector -> Word8Vector.vector;
+  eqtype hash_alg
+  val SHA1      : hash_alg
+  val SHA256    : hash_alg
+  val SHA224    : hash_alg
+  val SHA384    : hash_alg
+  val SHA512    : hash_alg
+  val RIPEMD160 : hash_alg
+  val SHA3_256  : hash_alg
+  val KECCAK256 : hash_alg
+  val MD5       : hash_alg
+
+
+  val sha1 : Word8Vector.vector -> Word8Vector.vector
+  val sha256 : Word8Vector.vector -> Word8Vector.vector
+  val sha224 : Word8Vector.vector -> Word8Vector.vector
+  val sha256_2 : Word8Vector.vector -> Word8Vector.vector
+  val sha384 : Word8Vector.vector -> Word8Vector.vector
+  val sha512 : Word8Vector.vector -> Word8Vector.vector
+  val ripemd160 : Word8Vector.vector -> Word8Vector.vector
+  val hash160 : Word8Vector.vector -> Word8Vector.vector
+  val sha3_256 : Word8Vector.vector -> Word8Vector.vector
+  val keccak256 : Word8Vector.vector -> Word8Vector.vector
+  val md5 : Word8Vector.vector -> Word8Vector.vector
+
+  val hmac : hash_alg * Word8Vector.vector * Word8Vector.vector ->
+         Word8Vector.vector
 end
 
 local
   open Foreign
 
-  val keccak_lib = loadLibrary "libs/keccak/BRCrypto.so"
+  val keccak_lib = loadLibrary "libs/crypto/BRCrypto.so"
 
   val sha1Call = buildCall3((getSymbol keccak_lib "BRSHA1"),
                             (cArrayPointer cUchar, cByteArray, cUint),
@@ -42,7 +57,7 @@ local
                             (cArrayPointer cUchar, cByteArray, cUint),
                             cVoid)
 
-  val rmd160Call = buildCall3((getSymbol keccak_lib "BRRMD160"),
+  val ripemd160Call = buildCall3((getSymbol keccak_lib "BRRMD160"),
                             (cArrayPointer cUchar, cByteArray, cUint),
                             cVoid)
 
@@ -62,10 +77,16 @@ local
                             (cArrayPointer cUchar, cByteArray, cUint),
                             cVoid)
 
+  val hmacCall = buildCall7((getSymbol keccak_lib "BRHMAC"),
+                            (cArrayPointer cUchar, cPointer, cUint,
+                             cArrayPointer cUchar, cUint,
+                             cArrayPointer cUchar, cUint),
+                            cVoid)
 
 in
-  structure Crypto :CRYPTO =
+  structure Crypto : CRYPTO =
   struct
+
 
     fun createBuffer (size : int) = Array.array (size, 0w0 : Word8.word)
 
@@ -74,6 +95,13 @@ in
     in
       fun arrayToWord8Vector a = Word8Vector.fromList (toList a)
     end
+
+    local
+      fun toList v = Word8Vector.foldr op:: [] v
+    in
+      fun word8VectorToArray v = Array.fromList (toList v)
+    end
+
 
     fun hash (call, bufSize) data =
     let
@@ -98,7 +126,7 @@ in
     fun sha512 (data) = hash (sha512Call, 64) data
 
      (* ripemd-160: http://homes.esat.kuleuven.be/~bosselae/ripemd160.html *)
-    fun rmd160 (data) = hash (rmd160Call, 20) data
+    fun ripemd160 (data) = hash (ripemd160Call, 20) data
 
      (* bitcoin hash-160 = ripemd-160(sha-256(x)) *)
     fun hash160 (data) = hash (hash160Call, 20) data
@@ -111,6 +139,85 @@ in
 
      (* md5 - for non-cryptographic use only *)
     fun md5 (data) = hash (md5Call, 16) data
+
+    datatype hash_alg = SHA1 | SHA256 | SHA224 |
+                        SHA384 | SHA512 | RIPEMD160 |
+                        SHA3_256 | KECCAK256 | MD5
+
+    fun getHashFunction (algo : hash_alg) =
+      case algo of
+           SHA1 => sha1 |
+           SHA256 => sha256 |
+           SHA224 => sha224 |
+           SHA384 => sha384 |
+           SHA512 => sha512 |
+           RIPEMD160 => ripemd160 |
+           SHA3_256 => sha3_256 |
+           KECCAK256 => keccak256 |
+           MD5 => md5 |
+           _ => raise Fail "Algorithm is not available"
+
+    local
+      fun getHashFunctionBlockSize (algo : hash_alg) =
+        case algo of
+             SHA1 => 64 |
+             SHA256 => 64 |
+             SHA224 => 64 |
+             SHA384 => 128 |
+             SHA512 => 128 |
+             RIPEMD160 => 64 |
+             SHA3_256 => 136 |
+             KECCAK256 => 136 |
+             MD5 => 64 |
+             _ => raise Fail "Algorithm is not available"
+
+    fun rightPadVector (v, size) =
+    let
+      val vSize = Word8Vector.length v
+      val toPad = size - vSize
+    in
+      if
+        toPad >= 0
+      then
+        Word8Vector.concat [v, Word8Array.vector (Word8Array.array (toPad, 0w0))]
+      else
+         (* must not be the case, as the size should be checked before call *)
+        raise Size
+    end
+    in
+      fun hmac (algo : hash_alg, data, key) =
+      let
+        val blockSize = getHashFunctionBlockSize algo
+        val hashFunction = getHashFunction algo
+
+        val modifiedKey =
+          if
+            Word8Vector.length key > blockSize
+          then
+            rightPadVector (hashFunction key, blockSize)
+          else
+            rightPadVector (key, blockSize)
+
+        val s_i = Word8Vector.map (fn(x) => Word8.xorb (x, 0wx36)) modifiedKey
+        val s_o = Word8Vector.map (fn(x) => Word8.xorb (x, 0wx5c)) modifiedKey
+      in
+        hashFunction (Word8Vector.concat([
+          s_o,
+          hashFunction (Word8Vector.concat ([s_i, data]))
+        ]))
+      end
+    end
+
+(*    fun hmac (data, key) =
+    let
+      val buf = createBuffer (32)
+    in
+      hmacCall (buf,
+        symbolAsAddress (getSymbol keccak_lib "BRKeccak256"), 32,
+        word8VectorToArray key, Word8Vector.length key,
+        word8VectorToArray data, Word8Vector.length data);
+      arrayToWord8Vector buf
+    end *)
 
   end
 end
