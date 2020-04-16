@@ -77,17 +77,11 @@ local
                             (cArrayPointer cUchar, cByteArray, cUint),
                             cVoid)
 
-  val hmacCall = buildCall7((getSymbol keccak_lib "BRHMAC"),
-                            (cArrayPointer cUchar, cPointer, cUint,
-                             cArrayPointer cUchar, cUint,
-                             cArrayPointer cUchar, cUint),
-                            cVoid)
-
 in
   structure Crypto : CRYPTO =
   struct
 
-
+     (* internal function used to create an output buffer for foreign call *)
     fun createBuffer (size : int) = Array.array (size, 0w0 : Word8.word)
 
     local
@@ -96,13 +90,8 @@ in
       fun arrayToWord8Vector a = Word8Vector.fromList (toList a)
     end
 
-    local
-      fun toList v = Word8Vector.foldr op:: [] v
-    in
-      fun word8VectorToArray v = Array.fromList (toList v)
-    end
 
-
+     (* internal function used to hash data with specified hash function *)
     fun hash (call, bufSize) data =
     let
       val buf = createBuffer (bufSize)
@@ -140,6 +129,7 @@ in
      (* md5 - for non-cryptographic use only *)
     fun md5 (data) = hash (md5Call, 16) data
 
+     (* to be able to define hash function to be used in HMAC *)
     datatype hash_alg = SHA1 | SHA256 | SHA224 |
                         SHA384 | SHA512 | RIPEMD160 |
                         SHA3_256 | KECCAK256 | MD5
@@ -181,7 +171,7 @@ in
       then
         Word8Vector.concat [v, Word8Array.vector (Word8Array.array (toPad, 0w0))]
       else
-         (* must not be the case, as the size should be checked before call *)
+         (* must not be raised, as the size should be checked before the call *)
         raise Size
     end
     in
@@ -208,16 +198,6 @@ in
       end
     end
 
-(*    fun hmac (data, key) =
-    let
-      val buf = createBuffer (32)
-    in
-      hmacCall (buf,
-        symbolAsAddress (getSymbol keccak_lib "BRKeccak256"), 32,
-        word8VectorToArray key, Word8Vector.length key,
-        word8VectorToArray data, Word8Vector.length data);
-      arrayToWord8Vector buf
-    end *)
 
   end
 end
