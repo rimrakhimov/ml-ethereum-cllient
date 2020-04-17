@@ -46,6 +46,7 @@ let
   ]
 
 in
+  print("Test Case 1:\n")
   if
     generatedOutput1 = expectedOutput1
   then
