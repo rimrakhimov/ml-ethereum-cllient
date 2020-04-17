@@ -24,8 +24,22 @@ sig
   val keccak256 : Word8Vector.vector -> Word8Vector.vector
   val md5 : Word8Vector.vector -> Word8Vector.vector
 
-  val hmac : hash_alg * Word8Vector.vector * Word8Vector.vector ->
+  val hmac : hash_alg -> Word8Vector.vector -> Word8Vector.vector ->
          Word8Vector.vector
+
+  structure HMAC_DRNG :
+  sig
+    type hmac_drng
+
+    val init : hash_alg * Word8Vector.vector * Word8Vector.vector *
+      Word8Vector.vector -> hmac_drng
+
+    val reseed : hmac_drng * Word8Vector.vector * Word8Vector.vector -> unit
+
+    val generate : hmac_drng * int * Word8Vector.vector -> Word8Vector.vector
+
+  end
+
 end
 
 local
@@ -78,7 +92,7 @@ local
                             cVoid)
 
 in
-  structure Crypto : CRYPTO =
+  structure Crypto :> CRYPTO =
   struct
 
      (* internal function used to create an output buffer for foreign call *)
@@ -161,21 +175,21 @@ in
              MD5 => 64 |
              _ => raise Fail "Algorithm is not available"
 
-    fun rightPadVector (v, size) =
-    let
-      val vSize = Word8Vector.length v
-      val toPad = size - vSize
+      fun rightPadVector (v, size) =
+      let
+        val vSize = Word8Vector.length v
+        val toPad = size - vSize
+      in
+        if
+          toPad >= 0
+        then
+          Word8Vector.concat [v, Word8Array.vector (Word8Array.array (toPad, 0w0))]
+        else
+           (* must not be raised, as the size should be checked before the call *)
+          raise Size
+      end
     in
-      if
-        toPad >= 0
-      then
-        Word8Vector.concat [v, Word8Array.vector (Word8Array.array (toPad, 0w0))]
-      else
-         (* must not be raised, as the size should be checked before the call *)
-        raise Size
-    end
-    in
-      fun hmac (algo : hash_alg, data, key) =
+      fun hmac (algo : hash_alg) key data =
       let
         val blockSize = getHashFunctionBlockSize algo
         val hashFunction = getHashFunction algo
@@ -198,6 +212,92 @@ in
       end
     end
 
+    structure HMAC_DRNG =
+    struct
+      datatype hmac_drng = DRNG of hash_alg * Word8Vector.vector ref * Word8Vector.vector ref
+
+      fun getHashFunctionOutputSize (algo : hash_alg) =
+        case algo of
+             SHA1 => 20 |
+             SHA256 => 32 |
+             SHA224 => 28 |
+             SHA384 => 48 |
+             SHA512 => 64 |
+             RIPEMD160 => 20 |
+             SHA3_256 => 32 |
+             KECCAK256 => 32 |
+             MD5 => 16 |
+             _ => raise Fail "Algorithm is not available"
+
+
+      fun update(DRNG(algo, K, V), data) =
+      let
+        fun update_K_V (K, V, padByte) =
+        let
+          val _ = K := hmac algo (!K) (Word8Vector.concat [!V, Word8Vector.fromList[padByte], data])
+          val _ = V := hmac algo (!K) (!V)
+        in
+          ()
+        end
+      in
+        update_K_V (K, V, 0wx00);
+        if
+          Word8Vector.length data > 0
+        then
+          update_K_V (K, V, 0wx01)
+        else
+          ()
+      end
+
+
+
+      fun init (algo : hash_alg, entropy, nonce, ps) =
+      let
+        val seed = Word8Vector.concat [entropy, nonce, ps]
+        val K = ref (Word8Array.vector(
+          Word8Array.array(getHashFunctionOutputSize algo, 0w0)
+        ))
+        val V = ref (Word8Array.vector(
+          Word8Array.array(getHashFunctionOutputSize algo, 0w1)
+        ))
+        val drng = DRNG(algo, K, V)
+      in
+        update(drng, seed);
+        drng
+      end
+
+      fun reseed (drng, entropy, add_input) =
+      let
+        val seed = Word8Vector.concat [entropy, add_input]
+      in
+        update(drng, seed)
+      end
+
+      fun generate (drng, out_len, add_input) =
+      let
+        val _ = if Word8Vector.length add_input > 0
+                then update(drng, add_input)
+                else ()
+        val DRNG(alg, ref key, V) = drng
+        val h = hmac alg key
+        fun loop (res) =
+          if
+            Word8Vector.length res < out_len
+          then
+            let
+              val _ = V := h (!V)
+            in
+              loop (Word8Vector.concat [res, (!V)])
+            end
+          else
+            Word8VectorSlice.vector (Word8VectorSlice.slice (res, 0, SOME out_len))
+        val res = loop (Word8Vector.fromList [])
+      in
+        update(drng, add_input);
+        res
+      end
+
+    end
 
   end
 end
