@@ -158,8 +158,7 @@ in
            RIPEMD160 => ripemd160 |
            SHA3_256 => sha3_256 |
            KECCAK256 => keccak256 |
-           MD5 => md5 |
-           _ => raise Fail "Algorithm is not available"
+           MD5 => md5
 
     local
       fun getHashFunctionBlockSize (algo : hash_alg) =
@@ -172,8 +171,7 @@ in
              RIPEMD160 => 64 |
              SHA3_256 => 136 |
              KECCAK256 => 136 |
-             MD5 => 64 |
-             _ => raise Fail "Algorithm is not available"
+             MD5 => 64
 
       fun rightPadVector (v, size) =
       let
@@ -226,10 +224,11 @@ in
              RIPEMD160 => 20 |
              SHA3_256 => 32 |
              KECCAK256 => 32 |
-             MD5 => 16 |
-             _ => raise Fail "Algorithm is not available"
+             MD5 => 16
 
 
+        (* Internal function used to update the internal state of DRNG.
+         *  Corresponds to HMAC_DRBG_Update in NIST specification *)
       fun update(DRNG(algo, K, V), data) =
       let
         fun update_K_V (K, V, padByte) =
