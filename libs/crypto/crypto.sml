@@ -249,7 +249,7 @@ in
       end
 
 
-
+       (* creates a new DNRG with specified entropy, nonce and personalized string *)
       fun init (algo : hash_alg, entropy, nonce, ps) =
       let
         val seed = Word8Vector.concat [entropy, nonce, ps]
@@ -265,6 +265,8 @@ in
         drng
       end
 
+       (* update internal state of the DRNG with specified entropy and
+        *  additional input *)
       fun reseed (drng, entropy, add_input) =
       let
         val seed = Word8Vector.concat [entropy, add_input]
@@ -272,6 +274,8 @@ in
         update(drng, seed)
       end
 
+       (* generate random vector of bytes
+       *   as side effect internal state of DRNG is updated *)
       fun generate (drng, out_len, add_input) =
       let
         val _ = if Word8Vector.length add_input > 0
