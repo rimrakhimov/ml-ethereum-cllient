@@ -1,0 +1,1 @@
+/usr/bin/cc -fPIC -std=c99 -DUSE_FIELD_GMP -DUSE_NUM_GMP -DUSE_FIELD_INV_NUM  -shared -Wl,-soname,libsecp256k1.so -o libsecp256k1.so CMakeFiles/secp256k1.dir/secp256k1.o -lgmp 
