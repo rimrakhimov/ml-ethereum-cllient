@@ -173,7 +173,7 @@ struct
       val _ = keccak256TestHash ()
       val _ = md5TestHash ()
     in
-      print ("'Hash Test' successfully passed\n")
+      print ("'Hash Test' successfully passed\n\n")
     end
 
 
@@ -282,7 +282,7 @@ struct
         val _ = keccak256TestOutputSize ()
         val _ = md5TestOutputSize ()
       in
-        print ("'Output Size Test' successfully passed\n")
+        print ("'Output Size Test' successfully passed\n\n")
       end
     end
 
@@ -390,11 +390,11 @@ struct
         val _ = keccak256TestBlockSize ()
         val _ = md5TestBlockSize ()
       in
-        print ("'Block Size Test' successfully passed\n")
+        print ("'Block Size Test' successfully passed\n\n")
       end
     end
 
-    fun run () =
+    fun runAll () =
       (testHash(); testOutputSize(); testBlockSize())
   end
 end

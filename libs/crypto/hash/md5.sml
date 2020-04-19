@@ -20,6 +20,8 @@ in
       fun arrayToWord8Vector a = Word8Vector.fromList (toList a)
     end
 
+    val name = "MD5"
+
     val outputSize = 16
     val blockSize = 64
 

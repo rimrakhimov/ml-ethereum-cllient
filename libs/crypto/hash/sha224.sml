@@ -19,6 +19,8 @@ in
       fun arrayToWord8Vector a = Word8Vector.fromList (toList a)
     end
 
+    val name = "SHA-224"
+
     val outputSize = 28
     val blockSize = 64
 
