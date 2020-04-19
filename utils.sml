@@ -17,6 +17,19 @@ structure Utils =
     fun takeVectorSlice (vec, offset, len) =
       Word8VectorSlice.vector (Word8VectorSlice.slice (vec, offset, len))
 
+    fun printWord8Vector vec =
+    let
+      val len = Word8Vector.length vec
+      fun loop i =
+        if i < len
+        then
+          (print(Word8.toString (Word8Vector.sub (vec, i)) ^ " "); loop (i+1))
+        else
+          ()
+    in
+      loop 0
+    end
+
 
       (* transforms from word8Vector to Word *)
     fun word8VectorToWord8 (word8VectorData) =
