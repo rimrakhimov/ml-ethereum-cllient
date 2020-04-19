@@ -2,13 +2,13 @@ use "libs/crypto/hash/hashSig";
 
 signature HMAC =
 sig
-  val hashName : string
+  structure Hash : HASH
   val hmac : Word8Vector.vector -> Word8Vector.vector -> Word8Vector.vector
 end
 
 functor Hmac(Hash : HASH) : HMAC =
 struct
-  val hashName = Hash.name
+  structure Hash = Hash
 
   local
     fun rightPadVector (v, size) =
