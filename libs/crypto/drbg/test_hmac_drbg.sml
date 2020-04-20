@@ -1,12 +1,18 @@
 (* Test cases have been obtained from NIST examples:
  *  https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/HMAC_DRBG.pdf *)
 
-use "libs/crypto/crypto";
+use "libs/crypto/drbg/hmac_drbg";
+use "libs/crypto/hash/sha1";
+use "libs/crypto/hash/sha512";
+
+structure Sha1Hmac = Hmac(Sha1);
+structure Sha1HmacDrbg = HmacDrbg(Sha1Hmac);
+
+structure Sha512Hmac = Hmac(Sha512);
+structure Sha512HmacDrbg = HmacDrbg(Sha512Hmac);
 
 fun testCase1 () =
 let
-  val algo = Crypto.SHA1
-
   val entropy = Word8Vector.fromList [
     0wx00, 0wx01, 0wx02, 0wx03, 0wx04, 0wx05, 0wx06, 0wx07,
     0wx08, 0wx09, 0wx0a, 0wx0b, 0wx0c, 0wx0d, 0wx0e, 0wx0f,
@@ -23,11 +29,11 @@ let
 
   val ps = Word8Vector.fromList []
 
-  val drng = Crypto.HMAC_DRNG.init (algo, entropy, nonce, ps)
-
   val add_input = Word8Vector.fromList []
 
-  val generatedOutput1 = Crypto.HMAC_DRNG.generate (drng, 40, add_input)
+  val drbg = Sha1HmacDrbg.instantiate (entropy, nonce, ps)
+
+  val generatedOutput1 = Sha1HmacDrbg.generate (drbg, 40, add_input)
   val expectedOutput1 = Word8Vector.fromList [
     0wx5a, 0wx7d, 0wx3b, 0wx44, 0wx9f, 0wx48, 0wx1c, 0wxb3,
     0wx8d, 0wxf7, 0wx9a, 0wxd2, 0wxb1, 0wxfc, 0wxc0, 0wx1e,
@@ -36,7 +42,7 @@ let
     0wx8c, 0wx8e, 0wxfc, 0wx17, 0wxa9, 0wx29, 0wx89, 0wx6e
   ]
 
-  val generatedOutput2 = Crypto.HMAC_DRNG.generate(drng, 40, add_input)
+  val generatedOutput2 = Sha1HmacDrbg.generate(drbg, 40, add_input)
   val expectedOutput2 = Word8Vector.fromList [
     0wx82, 0wxcf, 0wx77, 0wx2e, 0wxc3, 0wxe8, 0wx4b, 0wx00,
     0wxfc, 0wx74, 0wxf5, 0wxdf, 0wx10, 0wx4e, 0wxfb, 0wxfb,
@@ -46,7 +52,7 @@ let
   ]
 
 in
-  print("Test Case 1:\n")
+  print("Test Case 1:\n");
   if
     generatedOutput1 = expectedOutput1
   then
@@ -63,8 +69,6 @@ end
 
 fun testCase2 () =
 let
-  val algo = Crypto.SHA512
-
   val entropy = Word8Vector.fromList [
     0wx00, 0wx01, 0wx02, 0wx03, 0wx04, 0wx05, 0wx06, 0wx07,
     0wx08, 0wx09, 0wx0a, 0wx0b, 0wx0c, 0wx0d, 0wx0e, 0wx0f,
@@ -174,9 +178,9 @@ let
     0wx08, 0wx09, 0wx0a, 0wx0b, 0wx0c, 0wx0d, 0wx0e
   ]
 
-  val drng = Crypto.HMAC_DRNG.init (algo, entropy, nonce, ps)
+  val drbg = Sha512HmacDrbg.instantiate (entropy, nonce, ps)
 
-  val generatedOutput1 = Crypto.HMAC_DRNG.generate (drng, 128, add_input1)
+  val generatedOutput1 = Sha512HmacDrbg.generate (drbg, 128, add_input1)
   val expectedOutput1 = Word8Vector.fromList [
     0wx7a, 0wxe3, 0wx1a, 0wx2d, 0wxec, 0wx31, 0wx07, 0wx5f,
     0wxe5, 0wx97, 0wx26, 0wx60, 0wxc1, 0wx6d, 0wx22, 0wxec,
@@ -196,7 +200,7 @@ let
     0wxa3, 0wxf7, 0wxc7, 0wxb5, 0wx3c, 0wxe3, 0wx4a, 0wx3d
   ]
 
-  val generatedOutput2 = Crypto.HMAC_DRNG.generate(drng, 128, add_input2)
+  val generatedOutput2 = Sha512HmacDrbg.generate(drbg, 128, add_input2)
   val expectedOutput2 = Word8Vector.fromList [
     0wxd8, 0wx3a, 0wx80, 0wx84, 0wx63, 0wx0f, 0wx28, 0wx6d,
     0wxa4, 0wxdb, 0wx49, 0wxb9, 0wxf6, 0wxf6, 0wx08, 0wxc8,
@@ -234,8 +238,6 @@ end
 
 fun testCase3 () =
 let
-  val algo = Crypto.SHA512
-
   val entropy = Word8Vector.fromList [
     0wx00, 0wx01, 0wx02, 0wx03, 0wx04, 0wx05, 0wx06, 0wx07,
     0wx08, 0wx09, 0wx0a, 0wx0b, 0wx0c, 0wx0d, 0wx0e, 0wx0f,
@@ -298,10 +300,10 @@ let
 
   val add_input = Word8Vector.fromList []
 
-  val drng = Crypto.HMAC_DRNG.init (algo, entropy, nonce, ps)
+  val drbg = Sha512HmacDrbg.instantiate (entropy, nonce, ps)
 
-  val _ = Crypto.HMAC_DRNG.reseed (drng, entropy1, add_input)
-  val generatedOutput1 = Crypto.HMAC_DRNG.generate (drng, 128, add_input)
+  val _ = Sha512HmacDrbg.reseed (drbg, entropy1, add_input)
+  val generatedOutput1 = Sha512HmacDrbg.generate (drbg, 128, add_input)
   val expectedOutput1 = Word8Vector.fromList [
     0wx28, 0wxfd, 0wx60, 0wx60, 0wxc4, 0wxf3, 0wx5f, 0wx4d,
     0wx31, 0wx7a, 0wxb2, 0wx06, 0wx0e, 0wxe3, 0wx20, 0wx19,
@@ -321,8 +323,8 @@ let
     0wx09, 0wx30, 0wxf7, 0wxfd, 0wxe3, 0wx41, 0wxe2, 0wxaf
   ]
 
-  val _ = Crypto.HMAC_DRNG.reseed (drng, entropy2, add_input)
-  val generatedOutput2 = Crypto.HMAC_DRNG.generate(drng, 128, add_input)
+  val _ = Sha512HmacDrbg.reseed (drbg, entropy2, add_input)
+  val generatedOutput2 = Sha512HmacDrbg.generate(drbg, 128, add_input)
   val expectedOutput2 = Word8Vector.fromList [
     0wxc0, 0wxb1, 0wx60, 0wx1a, 0wxfe, 0wx39, 0wx33, 0wx8b,
     0wx58, 0wxdc, 0wx2b, 0wxe7, 0wxc2, 0wx56, 0wxae, 0wxbe,
