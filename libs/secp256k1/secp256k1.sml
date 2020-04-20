@@ -241,10 +241,11 @@ in
         else createBuffer (65)
       val pubkey_len = ref 0
 
+      val privkeyVerified = ecdsaPrivkeyVerify privkey
       val status = ecdsaPubkeyCreateCall(pubkey, pubkey_len, privkey, compressed_val)
     in
       if
-        status = 1
+        privkeyVerified andalso status = 1
       then
         Word8VectorSlice.vector (
           Word8VectorSlice.slice (arrayToWord8Vector pubkey, 0, SOME (!pubkey_len))
