@@ -1,7 +1,7 @@
 local
   open Foreign
 
-  val aes_lib = loadLibrary "libs/aes/aes_ml.so"
+  val aes_lib = loadLibrary "libs/aes/src/aes_ml.so"
 
   val createEncryptorCall = buildCall0((getSymbol aes_lib "create_ctx"), (), cPointer)
 
