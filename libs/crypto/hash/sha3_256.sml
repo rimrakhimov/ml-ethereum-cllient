@@ -3,7 +3,7 @@ use "libs/crypto/hash/hashSig";
 local
   open Foreign
 
-  val crypto_lib = loadLibrary "libs/crypto/src/BRCrypto.so"
+  val crypto_lib = loadLibrary "libs/crypto/hash/src/BRCrypto.so"
   val call = buildCall3((getSymbol crypto_lib "BRSHA3_256"),
                   (cArrayPointer cUchar, cByteArray, cUint),
                   cVoid)
