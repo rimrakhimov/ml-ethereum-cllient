@@ -2,6 +2,8 @@ signature SECP256K1 =
 sig
   exception Secp256k1 of string
 
+  val order : IntInf.int
+
   val start : unit -> unit
   val stop : unit -> unit
 
@@ -74,6 +76,9 @@ in
   struct
      (* indicates foreign function has not returned successful return code *)
     exception Secp256k1 of string
+
+    val order = LargeInt.toLarge
+    0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
      (* internal function used to create an output buffer for foreign call *)
     fun createBuffer (size : int) = Array.array (size, 0w0 : Word8.word)
