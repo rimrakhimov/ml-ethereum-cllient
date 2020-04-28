@@ -58,7 +58,7 @@ structure Utils =
 
 
       (* transforms from words to word8Vector *)
-(*    fun word8ToWord8Vector (item : Word8.word) =
+    fun word8ToWord8Vector (item : Word8.word) =
       let
         val arr = Word8Array.array(PackWord8Big.bytesPerElem, 0w0);
       in
@@ -74,13 +74,13 @@ structure Utils =
         Word8Array.vector arr
       end;
 
-    fun word24ToWord8Vector (item : Word24.word) =
+(*    fun word24ToWord8Vector (item : Word24.word) =
       let
         val arr = Word8Array.array(PackWord24Big.bytesPerElem, 0w0);
       in
         PackWord24Big.update (arr, 0, Word24.toLargeWord item);
         Word8Array.vector arr
-      end;
+      end; *)
 
     fun word32ToWord8Vector (item : Word32.word) =
       let
@@ -90,7 +90,7 @@ structure Utils =
         Word8Array.vector arr
       end;
 
-    fun word40ToWord8Vector (item : Word40.word) =
+(*    fun word40ToWord8Vector (item : Word40.word) =
       let
         val arr = Word8Array.array(PackWord40Big.bytesPerElem, 0w0);
       in
@@ -112,7 +112,7 @@ structure Utils =
       in
         PackWord56Big.update (arr, 0, Word56.toLargeWord item);
         Word8Array.vector arr
-      end;
+      end; *)
 
     fun word64ToWord8Vector (item : Word64.word) =
       let
@@ -120,7 +120,7 @@ structure Utils =
       in
         PackWord64Big.update (arr, 0, Word64.toLargeWord item);
         Word8Array.vector arr
-      end; *)
+      end;
 
   end;
 
