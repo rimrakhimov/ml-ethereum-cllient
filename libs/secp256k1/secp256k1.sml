@@ -23,12 +23,15 @@ sig
 
   val ecdsaPrivkeyVerify : Word8Vector.vector -> bool
 
-  val ecdsaPubkeyVerify: Word8Vector.vector -> bool
+  val ecdsaPubkeyVerify : Word8Vector.vector -> bool
 
-  val ecdsaPubkeyCreate: Word8Vector.vector -> bool ->
+  val ecdsaPubkeyCreate : Word8Vector.vector -> bool ->
     Word8VectorSlice.vector
 
-  val ecdsaPubkeyDecompress: Word8Vector.vector -> Word8VectorSlice.vector
+  val ecdsaPubkeyDecompress : Word8Vector.vector -> Word8VectorSlice.vector
+
+  val ecdsaPubkeyMul : Word8Vector.vector -> Word8Vector.vector ->
+    Word8Vector.vector
 
 end
 
@@ -71,6 +74,9 @@ local
 
   val ecdsaPubkeyDecompressCall = buildCall2((getSymbol secp256k1_lib "secp256k1_ecdsa_pubkey_decompress"),
                                     (cArrayPointer cUchar, cStar cInt), cInt)
+
+  val ecdsaPubkeyMulCall = buildCall3((getSymbol secp256k1_lib "secp256k1_ecdsa_pubkey_tweak_mul"),
+                              (cArrayPointer cUchar, cInt, cByteArray), cInt)
 in
   structure Secp256k1 : SECP256K1 =
   struct
@@ -273,5 +279,19 @@ in
       else raise Secp256k1 "Public key is invalid"
     end
 
+    fun ecdsaPubkeyMul pubkey scalar =
+    let
+      val _ = ensureStarted ()
+      val _ = ensureBufferSize (scalar, 32, "scalar")
+
+      val pubkey_buf = word8VectorToArray pubkey
+
+      val pubkey_len = Array.length pubkey_buf
+      val status = ecdsaPubkeyMulCall (pubkey_buf, pubkey_len, scalar)
+    in
+      if status = 1
+      then arrayToWord8Vector pubkey_buf
+      else raise Secp256k1 "Multiplication is not valid"
+    end
   end
 end
