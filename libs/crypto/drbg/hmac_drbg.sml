@@ -1,7 +1,7 @@
 use "libs/crypto/drbg/internalDrbgSig";
 use "libs/crypto/hmac";
 
-functor HmacDrbg (Hmac : HMAC) : INTERNAL_DRBG =
+functor HmacDrbg (Hmac : HMAC) :> INTERNAL_DRBG =
 struct
   datatype state = State of Word8Vector.vector ref * Word8Vector.vector ref
 
