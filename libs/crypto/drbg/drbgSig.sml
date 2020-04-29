@@ -1,13 +1,16 @@
-use "libs/crypto/drbg/internalDrbgSig";
-
 signature DRBG =
 sig
-  exception Drbg of string
+  exception DrbgFail of string
+  exception DrbgCatastrophicFail
 
   type state
 
-  val instantiate : Word8Vector.vector * Word8Vector.vector *
-    Word8Vector.vector * int -> state
+  val instantiate : Word8Vector.vector option -> state
 
-  val reseed : state *
+  val reseed : state * Word8Vector.vector option -> unit
+
+  val generate : state * int * bool * Word8Vector.vector option ->
+    Word8Vector.vector
 end
+
+
