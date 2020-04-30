@@ -5,7 +5,23 @@ use "libs/crypto/hmac";
 use "libs/crypto/drbg/hmac_drbg";
 use "libs/crypto/drbg/drbg";
 
-structure KeyPair =
+signature KEY_PAIR =
+sig
+  exception Fail of string
+
+  type keyPair;
+
+  val getPrivateKey : keyPair -> Word8Vector.vector
+  val getPublicKey : keyPair -> Word8Vector.vector
+
+  val fromPrivateKey : Word8Vector.vector -> keyPair
+  val random : unit -> keyPair
+
+  val signMessage : keyPair -> Word8Vector.vector ->
+    {r: Word8VectorSlice.vector, recid: int, s: Word8VectorSlice.vector}
+end
+
+structure KeyPair :> KEY_PAIR =
 struct
   exception Fail of string
 
@@ -38,16 +54,9 @@ struct
   fun fromPrivateKey privkey =
   let
     val _ = Secp256k1.start()
-    val pubkey_secp = (Secp256k1.ecdsaPubkeyCreate privkey false)
+    val pubkey = (Secp256k1.ecdsaPubkeyCreate privkey false)
       handle Secp256k1.Secp256k1 ex => raise Fail ex
-    val _ = Secp256k1.stop()
-
-    (* first byte of secp256k1 public key indicates whether the key is in
-     *  compressed format. As we assume that the format is always non
-     *  compressed we can get rid of the first byte *)
-    val pubkey = Word8VectorSlice.vector (
-      Word8VectorSlice.slice (pubkey_secp, 1, NONE)
-    )
+    (* val _ = Secp256k1.stop() - stopping inside the function may cause another function fail *)
   in
     KeyPair (privkey, pubkey)
   end
@@ -58,10 +67,10 @@ struct
   in
     fun random () =
     let
+      val _ = Secp256k1.start()
       fun getPrivateKey () =
-      let
+      let (* TODO: add exception handling of random generation *)
         val privkey = Rand.generate(rand, 32, false, NONE)
-        val _ = Secp256k1.start()
       in  (* ensure that generated private key is valid *)
         if Secp256k1.ecdsaPrivkeyVerify privkey
         then privkey
@@ -78,14 +87,15 @@ struct
   (* fun load (path) *)
 
 
-(*  local
+  local
     structure Keccak256HmacDrbg = HmacDrbg(Hmac(Keccak256))
   in
-    fun signMessage privkey msg =
+    fun signMessage keyPair msg =
     let
       val nonceLen = 32
       val emptyVec = Word8Array.vector (Word8Array.array(nonceLen, 0w0))
       val msgHash = Keccak256.hash msg
+
       val drbg = Keccak256HmacDrbg.instantiate (privkey, msgHash, emptyVec)
       fun getNonce drbg =
       let
@@ -99,14 +109,16 @@ struct
       end
       val nonce = getNonce drbg
 
+      val privkey = getPrivateKey keyPair
+
       val _ = Secp256k1.start()
        (* Secp256k1 exception may be raised. Have to think about handling it *)
       val sign = Secp256k1.ecdsaSignCompact privkey msgHash nonce
       val _ = Secp256k1.stop()
     in
-      msgHash
+      sign
     end
-  end *)
+  end
 
 
 end
