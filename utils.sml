@@ -17,6 +17,24 @@ structure Utils =
     fun takeVectorSlice (vec, offset, len) =
       Word8VectorSlice.vector (Word8VectorSlice.slice (vec, offset, len))
 
+    fun word8VectorXorb (vec1, vec2) =
+      if Word8Vector.length vec1 <> Word8Vector.length vec2
+      then raise Fail "Vectors should have the same length"
+      else
+        let
+          val len = Word8Vector.length vec1
+          fun loop (i : int, res) =
+            if i >= 0
+            then loop (
+              i - 1,
+              Word8.xorb (Word8Vector.sub(vec1, i), Word8Vector.sub(vec2, i)) :: res
+            )
+            else
+              res
+        in
+          Word8Vector.fromList (loop (len-1, []))
+        end
+
     fun printWord8Vector vec =
     let
       val len = Word8Vector.length vec
