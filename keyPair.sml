@@ -96,6 +96,8 @@ struct
       val emptyVec = Word8Array.vector (Word8Array.array(nonceLen, 0w0))
       val msgHash = Keccak256.hash msg
 
+      val privkey = getPrivateKey keyPair
+
       val drbg = Keccak256HmacDrbg.instantiate (privkey, msgHash, emptyVec)
       fun getNonce drbg =
       let
@@ -108,8 +110,6 @@ struct
         else getNonce drbg
       end
       val nonce = getNonce drbg
-
-      val privkey = getPrivateKey keyPair
 
       val _ = Secp256k1.start()
        (* Secp256k1 exception may be raised. Have to think about handling it *)
