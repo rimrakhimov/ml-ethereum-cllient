@@ -1,9 +1,10 @@
 use "libs/secp256k1/secp256k1";
 
-use "libs/crypto/hash/keccak256";
+(* use "libs/crypto/hash/keccak256";
 use "libs/crypto/hmac";
 use "libs/crypto/drbg/hmac_drbg";
-use "libs/crypto/drbg/drbg";
+use "libs/crypto/drbg/drbg"; *)
+use "libs/random/hmac_drbg_random";
 
 signature KEY_PAIR =
 sig
@@ -17,8 +18,8 @@ sig
   val fromPrivateKey : Word8Vector.vector -> keyPair
   val random : unit -> keyPair
 
-  val signMessage : keyPair -> Word8Vector.vector ->
-    {r: Word8VectorSlice.vector, recid: int, s: Word8VectorSlice.vector}
+  (* val signMessage : keyPair -> Word8Vector.vector ->
+    {r: Word8VectorSlice.vector, recid: int, s: Word8VectorSlice.vector} *)
 end
 
 structure KeyPair :> KEY_PAIR =
@@ -61,33 +62,28 @@ struct
     KeyPair (privkey, pubkey)
   end
 
-  local
-    structure Rand = Drbg(HmacDrbg(Hmac(Keccak256)))
-    val rand = Rand.instantiate(NONE)
-  in
-    fun random () =
-    let
-      val _ = Secp256k1.start()
-      fun getPrivateKey () =
-      let (* TODO: add exception handling of random generation *)
-        val privkey = Rand.generate(rand, 32, false, NONE)
-      in  (* ensure that generated private key is valid *)
-        if Secp256k1.ecdsaPrivkeyVerify privkey
-        then privkey
-        else getPrivateKey ()
-      end
-
-      val privkey = getPrivateKey ()
-    in
-       (* should not raise as private key was verified *)
-      fromPrivateKey privkey
+  fun random () =
+  let
+    val _ = Secp256k1.start()
+    fun getPrivateKey () =
+    let (* TODO: add exception handling of random generation *)
+      val privkey = HmacDrbgRandom.generateVector (32, false)
+    in  (* ensure that generated private key is valid *)
+      if Secp256k1.ecdsaPrivkeyVerify privkey
+      then privkey
+      else getPrivateKey ()
     end
+
+    val privkey = getPrivateKey ()
+  in
+     (* should not raise as private key was verified *)
+    fromPrivateKey privkey
   end
 
   (* fun load (path) *)
 
 
-  local
+(*  local
     structure Keccak256HmacDrbg = HmacDrbg(Hmac(Keccak256))
   in
     fun signMessage keyPair msg =
@@ -118,7 +114,7 @@ struct
     in
       sign
     end
-  end
+  end *)
 
 
 end
