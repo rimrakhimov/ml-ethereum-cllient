@@ -1,7 +1,9 @@
+use "libs/crypto/encryption/ctr_encryptor.sig";
+
 local
   open Foreign
 
-  val aes_lib = loadLibrary "libs/aes/src/aes_ml.so"
+  val aes_lib = loadLibrary "libs/crypto/encryption/aes/src/aes_ml.so"
 
   val createEncryptorCall = buildCall0((getSymbol aes_lib "create_ctx"), (), cPointer)
 
@@ -14,10 +16,29 @@ local
                             (cPointer, cByteArray), cVoid)
 
   val ctrEncryptCall = buildCall3((getSymbol aes_lib "AES_CTR_xcrypt_buffer"),
-                        (cPointer, cArrayPointer cUint8, cUint32), cVoid)
+                        (cPointer, cArrayPointer cUchar, cUint32), cVoid)
 in
-  structure Aes =
+  structure CtrAes128 :> CTR_ENCRYPTOR =
     struct
+      exception Encryptor of string
+
+      type encryptor = Foreign.Memory.voidStar
+
+      local
+        fun toList a = Array.foldr op:: [] a
+      in
+        fun arrayToWord8Vector a = Word8Vector.fromList (toList a)
+      end
+
+      local
+        fun toList v = Word8Vector.foldr op :: [] v
+      in
+        fun word8VectorToArray v = Array.fromList (toList v)
+      end
+
+      val blockSize = 16
+      val keySize = 16
+
       fun createEncryptor() = createEncryptorCall()
 
       fun destroyEncryptor(encryptor) = destroyEncryptorCall(encryptor)
@@ -26,8 +47,13 @@ in
 
       fun setEncryptorIV(encryptor, iv) = setEncryptorIVCall(encryptor, iv)
 
-      fun ctrEncrypt(encryptor, data) =
-        ctrEncryptCall(encryptor, data, IntArray.length data)
+      fun encrypt(encryptor, data) =
+      let
+        val buf = word8VectorToArray data
+        val _ = ctrEncryptCall(encryptor, buf, Word8Vector.length data)
+      in
+        arrayToWord8Vector buf
+      end
 
     end
 end

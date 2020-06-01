@@ -29,6 +29,8 @@ sig
   sig
     exception RlpFormat of string
 
+    val decodeLength : Word8Vector.vector -> {isList: bool, len: int, offset: int}
+
     val formRlpResult : Word8Vector.vector -> rlpResult
 
     val decodeList : rlpResult -> rlpResult list
@@ -351,7 +353,7 @@ struct
 
         else
           if
-            prefix < (base + 0wx40) andalso inLen > Word8.toInt (prefix - (base + 0w55))
+            inLen > Word8.toInt (prefix - (base + 0w55))
           then
             let
               val lenSize = Word8.toInt (prefix - (base + 0w55))

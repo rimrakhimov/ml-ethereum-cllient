@@ -2,6 +2,8 @@ use "libs/PackWord";
 
 structure Utils =
   struct
+    val emptyWord8Vector = Word8Vector.fromList []
+
     local
       fun log256 t = Math.ln(t) / Math.ln(256.0)
     in
